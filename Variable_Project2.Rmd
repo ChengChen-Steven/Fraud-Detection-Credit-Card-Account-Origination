@@ -1,6 +1,6 @@
 ---
 title: "R Variables Creation"
-output: github_document
+output: html_notebook
 ---
 
 
@@ -35,13 +35,13 @@ DateInt = c(3, 7, 14, 21)
 ```
 
 We focus on five variables and their associations:
-Column3: ssn; Column6: address; Column7: zip5; Column9: homephone; Column11: person
-Yearday is used for calculation: 
-Column12: yearday  
+* Column3: ssn; Column6: address; Column7: zip5; Column9: homephone; Column11: person
+* Yearday is used for calculation: 
+* Column12: yearday  
 
 #### 3.1  Full loop for calculating times that each variable occurs in the past DataInt days
-the occurrence of record itself is not included
-exclude Column7(zip5) in this computation
+* the occurrence of record itself is not included
+* exclude Column7(zip5) in this computation
 ```{r PastDateIntNumber}
 data_four_sin = data[,c(3,6,9,11,12)] 
 n_d_s = ncol(data_four_sin) - 1
@@ -66,8 +66,8 @@ data = data.frame(data,data_four_sin[,(n_d_s+2):(5*n_d_s+1)])
 ```
 
 #### 3.2  Full loop for calculating times that association of two variables occurs in the past DataInt days
-the occurrence of record itself is not included
-ssn, address, zip5, homephone, person, 10 combinations in total
+* the occurrence of record itself is not included
+* ssn, address, zip5, homephone, person, 10 combinations in total
 ```{r PastDateIntNumberCombination}
 data_side = data[,c(3,6,3,7,3,9,3,11, 6,7,6,9,6,11, 7,9,7,11, 9,11, 12)] 
 ## 5C2 = 10  ## length = 21
@@ -94,8 +94,8 @@ data = data.frame(data,data_side[(ncol_ds+1):(ncol_ds+4*(ncol_ds-1)/2)])
 ```
 
 #### 4.1  # of days since last saw this ssn, address, homephone, person 
-exclude Column7(zip5) in this computation
-those records without "another occurrence" are assigned with 999.
+* exclude Column7(zip5) in this computation
+* those records without "another occurrence" are assigned with 999.
 ```{r LastOccurDay}
 data_four_sin = data[,c(3,6,9,11,12)]
 n_data_four_sin = ncol(data_four_sin)
@@ -118,8 +118,8 @@ data = data.frame(data,data_four_sin[,(n_data_four_sin+1):(n_data_four_sin+4)])
 ```
 
 #### 4.2  # of days since last saw this combinations of two variables
-ssn, address, zip5, homephone, person, 10 combinations in total
-those records without "another occurrence" are assigned with 999.
+* ssn, address, zip5, homephone, person, 10 combinations in total
+* those records without "another occurrence" are assigned with 999.
 ```{r LastOccurDayCombination}
 data_four = data[,c(3,6,3,7,3,9,3,11, 6,7,6,9,6,11, 7,9,7,11, 9,11, 12)] 
 ## 5C2 = 10  ## length = 21

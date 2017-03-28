@@ -1,0 +1,245 @@
+---
+title: "PCA & Autoencoder Fraud Score"
+output: html_notebook
+---
+
+####  0.Load Result
+```{r DATASETLIBRARY}
+load("full_data.rda")
+original_data = read.csv("Application.csv")
+library(psych)
+library(dplyr)
+library(ggplot2)
+```
+
+#### 1. Get rid of Record before /1/22/2015, and duplicated data
+```{r}
+which(final_data$date == 20150122) ## 5879
+n_start = min(which(final_data$date == 20150122) - 1)
+pca_data = final_data[-c(1:5878),c(17:28, 30, 33, 39:40,43, 50,53, 60,63, 69:78,80:82)]
+```
+
+#### 2. Zscale
+```{r Zscale}
+pca_data_bef_z = pca_data
+n_bef_z = ncol(pca_data_bef_z)
+for(i in 1:n_bef_z){
+  stand_deviation_bef_z = sd(pca_data_bef_z[,i])
+  mean_bef_z = mean(pca_data_bef_z[,i])
+  pca_data_bef_z[,i] = (pca_data_bef_z[,i] - mean_bef_z) / stand_deviation_bef_z
+}
+pca_data_input = pca_data_bef_z
+```
+
+#### 3. PCA
+```{r PCA}
+pca_result = prcomp(pca_data_input, center = F, scale = F)
+## if we do not do z-scale manually, we use "center = T, scale = T" and get the same output
+print(pca_result) ## standard deviations
+plot(pca_result, xlab = "Principal Component")
+## proportion of top 10 pcs
+sum(pca_result$sdev[1:10]^2)/ sum(pca_result$sdev^2) ## 0.9701617
+## composition of each PC
+pca_result$rotation
+```
+
+##### 3.1 Detailed description on the PCA result
+```{r PCA Detail}
+## compute standard deviation of each principal component
+std_dev = pca_result$sdev
+## compute variance
+pc_var <- std_dev^2
+## check variance of first 20 components
+pc_var[1:20]
+## [1] 32.05682537 11.09030693  5.91404116  2.90088604  2.88565086  2.56243565
+## [7]  1.28713564  0.95974704  0.66227839  0.28874687  0.28545059  0.25593051
+## [13]  0.18359834  0.15235161  0.11827201  0.08713744  0.05527433  0.05198040
+## [19]  0.03912010  0.02781191
+## proportion of variance explained
+prop_var_ex <- pc_var/sum(pc_var)
+prop_var_ex[1:20]
+##  [1] 0.5170455706 0.1788759183 0.0953877606 0.0467884845 0.0465427558  [6] 0.0413296073 0.0207602522 0.0154797909 0.0106819096 0.0046572076
+## [11] 0.0046040418 0.0041279115 0.0029612635 0.0024572840 0.0019076131 [16] 0.0014054426 0.0008915214 0.0008383935 0.0006309694 0.0004485792
+
+```
+
+##### 3.2 PCA Plot
+```{r PCA Plot}
+## proportion plot
+plot(prop_var_ex, xlab = "Principal Component",
+     ylab = "Proportion of Variance Explained",
+     type = "b")
+plot(prop_var_ex[1:20], xlab = "Principal Component",
+     ylab = "Proportion of Variance Explained",
+     type = "b")
+## there is an odd at pc 10
+## therefore, we cut at 10
+
+## cumulative scree plot
+plot(cumsum(prop_var_ex), xlab = "Principal Component",
+     ylab = "Cumulative Proportion of Variance Explained",
+     type = "b")
+
+## proportion of top 10 pcs
+sum(prop_var_ex[1:10]) ## 0.9806143
+```
+
+##### 3.3 Fraud Score based on Euclidean Distance
+```{r PCA Fraud Score}
+## top 10
+n_top = 10
+## calculate the transformed record metric
+## now what we have are the projection value of orginal dataset on the new n_top PC directions.
+## score of each record based on new pcs
+pca_matrix = predict(pca_result, newdata = pca_data_input) 
+## prcomp returns a list with class "prcomp" containing the following components:
+## sdev, rotation, x, cenrter, scale
+dim(pca_matrix)
+## extract top 13 pcs in pca_matrix
+pca_matrix_10 = as.data.frame(pca_matrix)[,c(1:n_top)]
+
+## as.data.frame so as to falicitate calculation
+pca_z = as.data.frame((pca_matrix_10))
+## pca_z_ae stores the current pca_z value left for autoencoder
+pca_z_ae = pca_z
+
+## score = sum of projections on the top 10 directions
+## Z-Scale first
+n_bef_z = ncol(pca_z)
+for(i in 1:n_bef_z){
+  stand_deviation_bef_z = sd(pca_z[,i])
+  mean_bef_z = mean(pca_z[,i])
+  pca_z[,i] = (pca_z[,i] - mean_bef_z) / stand_deviation_bef_z
+}
+## then score
+## square score
+pca_z$Total_score = sqrt(rowSums(pca_z[, c(1:n_top)]^2))
+## sum of absolute value score
+pca_z$SumAbs = rowSums(abs(pca_z[, c(1:n_top)]))
+MaxAbs = 1:nrow(pca_z)
+for(i in 1:nrow(pca_z)){
+  MaxAbs[i] = max(abs(pca_z[i, c(1:n_top)]))
+}
+pca_z_top = pca_z[,1:n_top]
+pca_z_top = abs(pca_z_top)
+## top absolute socre
+pca_z_top$AbsMax <- apply(pca_z_top, 1, max)
+
+pca_z$ID = 1:nrow(pca_z) + n_start
+## descendingly reorder the data 
+### index
+sorted_index = order(pca_z$Total_score, decreasing = T) 
+### reorder
+pca_z_order = pca_z[sorted_index, ]
+## check the top 10
+head(pca_z_order,10)
+## check the top 1000
+pca_ID_1000 = pca_z_order$ID[1:1000]
+``` 
+
+#### 4. Autocoder
+```{r Autocoder}
+library(h2o)
+## input data
+pca_z_ae
+## set autoencoder
+localH2O = h2o.init()
+feature_names = names(pca_z_ae)
+prostate.hex<-as.h2o(pca_z_ae, destination_frame="train.hex")
+prostate.dl = h2o.deeplearning(x = feature_names, training_frame = prostate.hex,
+                               autoencoder = TRUE,
+                               reproducible = T,
+                               seed = 1234,
+                               hidden = c(4,4), epochs = 50)
+
+# MSE of each record
+prostate.anon = h2o.anomaly(prostate.dl, prostate.hex, per_feature=FALSE)
+# head(prostate.anon)
+head(prostate.anon)
+err <- as.data.frame(prostate.anon)
+```
+
+##### 4.1 Autocoder Fraud Score
+```{r Autocoder Fraud Score}
+ae_err = data.frame(pca_z_ae,err)
+ae_err$ID = 1:nrow(ae_err) + n_start
+## descendingly reorder the data 
+### index
+sorted_index_ae = order(ae_err$Reconstruction.MSE, decreasing = T) 
+### reorder
+ae_err_order = ae_err[sorted_index_ae, ]
+## top ten
+head(ae_err_order$ID,10)
+## [1] 89852 10982 91874  6046  6143  6594  6782  7001  7234  7308
+## check the top 10000
+ae_ID_1000 = ae_err_order$ID[1:1000]
+```
+
+##### 4.2 Comparison between Autocoder Fraud Score and PCA Fraud Score
+```{r Comparison between Autocoder Fraud Score and PCA Fraud Score}
+## Comparison the overlapping between Euclidean and Autoencoder
+similarity = match(ae_ID_1000, pca_ID_1000)
+
+for(i in 1:1000){
+  similarity[i] = ifelse(is.na(similarity[i]), 0, 1)
+}
+overlap_prop = sum(similarity[1:1000])/1000
+## 40.1 %
+
+## top ten
+head(ae_err_order$ID,10)
+##  [1] 89852 10982 91874  6046  6143  6594  6782  7001  7234  7308
+head(pca_z_order$ID,10)
+##  [1] 92975 81534 45115 82477 68942 71178 10072  8542 51260 45667
+final_data$record[head(ae_err_order$ID,30)]
+##  [1] 89852 10982 91874  6046  6143  6594  6782  7001  7234  7308  7552  7644
+## [13]  8133  8614  8891  9022  9424 10742 10871 11098 11825 12092 13782 13836
+## [25] 14349 14484 15027 15169 16158 16567
+final_data$record[head(pca_z_order$ID,30)]
+##  [1] 92975 81534 45115 82477 68942 71178 10072  8542 51260 45667 54012 97482
+## [13] 67718 96561 95637 82618 75661 47150 60625  6452  7922 34878 35269 48864
+## [25] 51822 54347 74773 92334 11127 25612
+```
+
+#### 5. Fraud Distribution
+```{r Fraud Distribution}
+## visualize the fraud score distribution
+library(ggplot2)
+ggplot(data = ae_err_order[-c(1:10),], aes(x = Reconstruction.MSE)) + 
+  geom_histogram(bins = 200, fill = "lightblue") + 
+  scale_x_sqrt() +
+  scale_y_sqrt() + 
+  ggtitle("Distribution of MSE in Autoencoder") + 
+  theme(panel.background = element_blank()) 
+
+ggplot(data = pca_z_order, aes(x = Total_score)) + 
+  geom_histogram(bins = 100, fill = "lightblue", position = position_dodge(5)) + 
+  scale_x_sqrt() +
+  scale_y_sqrt() + 
+  ggtitle("Distribution of Euclidean Distance") + 
+  theme(panel.background = element_blank())
+
+ggplot(data = pca_z, aes(x = SumAbs)) + 
+  geom_histogram(bins = 100, fill = "lightblue", position = position_dodge(5)) + 
+  scale_x_sqrt() +
+  scale_y_sqrt() + 
+  ggtitle("Distribution of Sum of Absolute Value of PCs") + 
+  theme(panel.background = element_blank())
+
+ggplot(data = pca_z_top, aes(x = AbsMax)) + 
+  geom_histogram(bins = 100, fill = "lightblue", position = position_dodge(5)) + 
+  scale_x_sqrt() +
+  scale_y_sqrt() + 
+  ggtitle("Distribution of Maximum Absolute PC Value") + 
+  theme(panel.background = element_blank())
+```
+
+
+
+
+
+
+
+
+
+
