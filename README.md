@@ -1,4 +1,4 @@
-# Identity_Fraud_Detection
+# Fraud_Detection_Credit_Card_Account_Origination
 ###### This project commissions to examine the 100,000 credit card application data, detect abnormality and potential fraud in the dataset. All data manipulation and analysis are conducted in R. Featured analysis methods include Principal Component Analysis (PCA), Heuristic Algorithm and Autoencoder.
 
 ###### Nowadays, Synthetic Identity Theft has been emerging as a major fraud activity over the past decade. Usually, fraudsters will use this fictitious identity to apply for credit card, open deposit accounts or obtain other important identity documents.The size of the synthetic identity theft business is estimated to be in the billions per year across North America.
